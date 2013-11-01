@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
-#include <sys/time.h>
+
+#include "helper.h"
 
 typedef struct arg_t
 {
@@ -8,7 +9,6 @@ typedef struct arg_t
   uint64_t start;
   uint64_t end;
 } arg_t;
-typedef struct timeval timeval;
 
 void read_args(
   char** argv, // in
@@ -24,7 +24,7 @@ uint64_t sum_naive(
   uint64_t end)
 {
   uint64_t result = 0;
-  while(start <= end)
+  while (start <= end)
   {
     result += start;
     start += 1;
@@ -35,12 +35,6 @@ uint64_t sum_naive(
 uint64_t sum_gauss(uint64_t limit)
 {
   return limit * (limit+1) / 2;
-}
-
-double timediff(timeval a, timeval b)
-{
-  return 1.0 * (b.tv_sec - a.tv_sec)
-       + 0.000001 * (b.tv_usec - a.tv_usec);
 }
 
 int main(int argc, char** argv)
