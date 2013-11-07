@@ -7,7 +7,6 @@
 uint64_t *values; //Array mit allen Werten von Start bis Ende
 uint64_t *globalSum; //Array mit Zwischenergebnissen
 
-
 typedef struct arg_t
 {
   unsigned int threads;
@@ -24,9 +23,7 @@ void read_args(
   sscanf(argv[3], "%lld", &args->end);
 }
 
-
-
-void InitGlobals(int start,int end,int threads)
+void *InitGlobals(int start,int end,int threads)
 {
   int i,j;
   i = end-start;
@@ -35,11 +32,8 @@ void InitGlobals(int start,int end,int threads)
 
   for (j=0;j<i;j++)
   {
-
     values[j]=start+j;
   }
-
-
 
 }
 
@@ -74,7 +68,7 @@ int main(int argc, char** argv)
   pthread_t threads[args.threads];
   int thread_nr[args.threads];
 
-  InitArray(args.start,args.end,args.threads);
+  InitGlobals(args.start,args.end,args.threads);
 
   for (i=0; i<args.threads; ++i) {
       thread_nr[i] = i;
@@ -83,7 +77,7 @@ int main(int argc, char** argv)
  
   for (i=0; i<args.threads; ++i) {
       pthread_join(threads[i], NULL);
-      sum = sum + globalSum[i]
+      sum = sum + globalSum[i];
    }
 
 }
