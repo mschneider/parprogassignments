@@ -80,4 +80,7 @@ int main(int argc, char** argv)
       sum = sum + globalSum[i];
    }
 
+   FILE * output = fopen("output.txt", "w");
+   fprintf(output,"%llu", sum);
+
 }
