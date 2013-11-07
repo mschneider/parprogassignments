@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "helper.h"
-
 typedef struct arg_t
 {
   unsigned int threads;
