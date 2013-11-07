@@ -1,7 +1,10 @@
-all: parsum dinner
+all: parsum dinner parsumtry
 
 parsum: parsum.c
 	gcc -O3 parsum.c -o parsum
+
+parsumtry: parsumtry.c
+	gcc -O3 parsumtry.c -o parsumtry
 
 asm: parsum.c
 	gcc -O3 parsum.c -S -dp
