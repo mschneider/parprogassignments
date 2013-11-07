@@ -9,5 +9,8 @@ parsumtry: parsumtry.c
 asm: parsum.c
 	gcc -O3 parsum.c -S -dp
 
+submission:
+	tar -c parsum.c parsumtry.c dinner.c helper.h Makefile >submission.tar
+
 dinner: dinner.c
 	gcc --std=c99 -lpthread -O3 dinner.c -o dinner

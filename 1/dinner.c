@@ -14,11 +14,11 @@ typedef struct arg_t
 
 typedef struct philosopher_arg_t
 {
-  timeval start;
   int run_time;
   int left_fork;
   int right_fork;
   pthread_mutex_t * forks;
+  timeval start;
 } philosopher_arg_t;
 
 void read_args(
@@ -88,23 +88,6 @@ int main(int argc, char** argv)
   int64_t * counters = calloc(args.philosophers, sizeof(int64_t));
   pthread_mutex_t * forks = calloc(args.philosophers, sizeof(pthread_mutex_t));
   pthread_t * threads = calloc(args.philosophers, sizeof(pthread_t));
-  philosopher_arg_t * philosopher_args = calloc(args.philosophers, sizeof(philosopher_arg_t));
-  for (int i = 0; i < args.philosophers; ++i)
-  {
-    philosopher_arg_t * philosopher_args = &philosopher_args[i];
-    philosopher_args->run_time = args.run_time;
-    philosopher_args->left_fork = i;
-    philosopher_args->right_fork = (i + 1) % args.philosophers; // last philosopher has fork 0 at his right
-    philosopher_args->forks = forks;
-  }
-
-  pthread_mutexattr_t mutex_settings;
-
-  if (pthread_mutexattr_init(&mutex_settings))
-  {
-    puts("could not initialize mutex attributes");
-    return -1;
-  }
 
   for (int i = 0; i < args.philosophers; ++i)
   {
@@ -121,7 +104,11 @@ int main(int argc, char** argv)
   // start philosophers
   for (int i = 0; i < args.philosophers; ++i)
   {
-    philosopher_arg_t * philosopher_args = &philosopher_args[i];
+    philosopher_arg_t * philosopher_args = (philosopher_arg_t *) malloc(sizeof(philosopher_arg_t));
+    philosopher_args->run_time = args.run_time;
+    philosopher_args->left_fork = i;
+    philosopher_args->right_fork = (i + 1) % args.philosophers; // last philosopher has fork 0 at his right
+    philosopher_args->forks = forks;
     philosopher_args->start = start;
     pthread_t * thread = &threads[i];
     pthread_create(thread, NULL, philosopher, philosopher_args);
