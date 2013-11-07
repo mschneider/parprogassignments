@@ -1,3 +1,4 @@
+#define _ISOC99_SOURCE
 #include <math.h>
 #include <pthread.h>
 #include <stdio.h>
