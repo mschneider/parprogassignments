@@ -4,9 +4,8 @@
 #include <stdlib.h>
 #include "helper.h"
 
-int *values; //Array mit allen Werten von Start bis Ende
-
-uint64_t globalSum[args.threads]; //Array mit Zwischenergebnissen
+uint64_t *values; //Array mit allen Werten von Start bis Ende
+uint64_t *globalSum; //Array mit Zwischenergebnissen
 
 
 typedef struct arg_t
@@ -27,11 +26,12 @@ void read_args(
 
 
 
-void InitArray(int start,int end)
+void InitGlobals(int start,int end,int threads)
 {
   int i,j;
   i = end-start;
   values=malloc(i*sizeof(uint64_t));
+  globalSum=malloc(threads*sizeof(uint64_t));
 
   for (j=0;j<i;j++)
   {
@@ -74,7 +74,7 @@ int main(int argc, char** argv)
   pthread_t threads[args.threads];
   int thread_nr[args.threads];
 
-  InitArray(args.start,args.end);
+  InitArray(args.start,args.end,args.threads);
 
   for (i=0; i<args.threads; ++i) {
       thread_nr[i] = i;
