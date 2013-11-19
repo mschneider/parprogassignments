@@ -1,7 +1,9 @@
+#include <math.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 typedef struct arg_t
 {
@@ -9,112 +11,224 @@ typedef struct arg_t
   int height_field;
   int n_rounds;
   int act_round;
-  char* hotspot_file;
-  char* coord_file;
+  char* hotspot_filename;
+  char* selection_filename;
 } arg_t;
 
 
-typedef struct hotpoint
+typedef struct hotspot
 {
-  int coord_x;
-  int coord_y;
-  int start_r;
-  int end_r;
-}hotpoint;
+  int x;
+  int y;
+  int start;
+  int end;
+} hotspot_t;
+
+typedef struct hotspot_vector
+{
+  hotspot_t * elems;
+  size_t      count;
+} hotspot_vector_t;
+
+typedef double field_value_t;
 
 typedef struct field
 {
-  float* source_field;
-  float* new_field;
-}field;
+  field_value_t* old_values;
+  field_value_t* new_values;
+  int height;
+  int width;
+} field_t;
 
+int to_linear_field_index(
+  const field_t* field,
+  const int x,
+  const int y);
+
+void read_str_arg(
+  const char*  arg, // in
+  char**       out) // out
+{
+  *out = (char*) calloc(strlen(arg) + 1, sizeof(char));
+  sscanf(arg,"%s", *out);
+}
 
 /* Funktionen zum einlesen von Werten*/
-void read_args(char** argv,arg_t* args,int* argc) //Warum Zeiger auf Zeiger ?!?!
+void read_args(
+  const int    argc, // in
+  const char** argv, // in
+  arg_t*       args) // out
 {
   sscanf(argv[1],"%d", &args->width_field);
   sscanf(argv[2],"%d", &args->height_field);
   sscanf(argv[3],"%d", &args->n_rounds);
-  &args->act_round = 0; //Warum=?!?!?!
-  sscanf(argv[4],"%s", &args->hotspot_file);
-  if(&argc == 5) //Test if 5th argument is given
-  {
-  sscanf(argv[5],"%s", &args->coord_file);
-  }
-
+  args->act_round = 0;
+  read_str_arg(argv[4], &args->hotspot_filename);
+  if(argc == 6)
+    read_str_arg(argv[5], &args->selection_filename);
 }
 
+#define MAX_HOTSPOTS 1024*1024
 
-int read_hotspot(char* const filename)
+int read_hotspots(
+  const char* filename, // in
+  hotspot_vector_t* hotspots) // out
 {
-  FILE *filepointer;
-  filepointer = fopen(filename,"r");
-  /*lesen von File ab zweiter Zeile und für jede Zeile ein neues Struct hotspot*/
+  FILE* file = fopen(filename, "r");
+  if (NULL == file)
+    return -1;
 
+  char first_line[256];
+  if (NULL == fgets(first_line, sizeof(first_line), file))
+    return -1;
 
+  if (0 != strcmp(first_line, "x,y,startround,endround\n"))
+    return -1;
+
+  hotspots->count = 0;
+  hotspots->elems = calloc(MAX_HOTSPOTS, sizeof(hotspot_t));
+
+  // lesen von File ab zweiter Zeile und für jede Zeile ein neues Struct hotspot
+  while (1) {
+    hotspot_t* current_hotspot = &hotspots->elems[hotspots->count];
+    int numbers_read = fscanf(file, "%d,%d,%d,%d\n",
+          &current_hotspot->x,
+          &current_hotspot->y,
+          &current_hotspot->start,
+          &current_hotspot->end);
+
+//    printf("hotspot(%d):%d,%d,%d,%d\n",
+//        numbers_read,
+//        current_hotspot->x,
+//        current_hotspot->y,
+//        current_hotspot->start,
+//        current_hotspot->end);
+
+    if (numbers_read == -1) // end of file
+      return 0;
+    if (numbers_read != 4) // wrong format
+      return -1;
+    if (hotspots->count >= MAX_HOTSPOTS) // file too long
+      return -1;
+
+    ++hotspots->count;
+  }
 }
 
-
-/*Funktionen die Structs initialisieren*/
-
-void initialize_field(field* fields,arg_t* args)
+void set_hotspots(
+  field_t * field, // modified
+  const int current_round,
+  const hotspot_vector_t * hotspots) // in
 {
- int counter_i;
- int counter_j;
-
- fields->source_field = calloc(args->width_field*args->height_field, sizeof(float));
- fields->new_field = calloc(args->width_field*args->height_field, sizeof(float));
- for (counter_i=0;counter_i<args->width_field;counter_i++) //Komplette auf 0 setzen
-   {
-     for(counter_j=0;counter_j<args->height_field;counter_j++)
-     {
-       fields->source_field[counter_i+counter_j*args->width_field]=0;
-       fields->new_field[counter_i+counter_j*args->width_field]=0;
-     }
-   }
-
+  for (int i = 0; i < hotspots->count; ++i)
+  {
+    const hotspot_t * hotspot = &hotspots->elems[i];
+    if (current_round >= hotspot->start
+        && current_round < hotspot->end)
+    {
+      field->old_values[to_linear_field_index(field, hotspot->x, hotspot->y)] = 1.0;
+    }
+  }
 }
 
+void init_field(
+  const arg_t args,     // in
+  field_t* field) // out
+{
+  field->height = args.height_field;
+  field->width = args.width_field;
+  size_t field_size = (args.width_field + 2) * (args.height_field + 2);
+  field->old_values = calloc(field_size, sizeof(field_value_t));
+  field->old_values += 3 + args.width_field;
+  field->new_values = calloc(field_size, sizeof(field_value_t));
+  field->new_values += 3 + args.width_field;
+}
 
+int to_linear_field_index(
+  const field_t* field,
+  const int x,
+  const int y)
+{
+  return y * (field->width+2) + x;
+}
 
+double get_old_field_value(
+  const field_t* field,
+  const int x,
+  const int y)
+{
+  return field->old_values[to_linear_field_index(field, x ,y)];
+}
 
-/*Funktionen zur Berechnung neuer Hotpoints*/
-
-int set_hotpoints(hotpoint* hotpoints,field* fields)
-
+void print_field(
+  const field_t* field) // in
+{
+//  printf("field:\n");
+  for (int y = 0; y < field->height; ++y)
   {
-  
-  //Funktion die Hotpoint für jede Runde setzt in new_array aus Struct Hotpoint
-  
+    for (int x = 0; x < field->width; ++x)
+    {
+      const field_value_t value = get_old_field_value(field, x, y);
+      if (value > 0.9)
+        printf("X");
+      else
+        printf("%d", (int) (10.0 * (value + 0.09)));
+
+    }
+    printf("\n");
   }
+}
 
-
-
-void calcualte_new_heat_map()
+void simulate_round(
+  field_t* field) // in and out
+{
+  for (int y = 0; y < field->height; ++y)
   {
+    for (int x = 0; x < field->width; ++x)
+    {
+      const double new_value = get_old_field_value(field, x-1, y-1)
+                             + get_old_field_value(field, x-1, y)
+                             + get_old_field_value(field, x-1, y+1)
+                             + get_old_field_value(field, x  , y-1)
+                             + get_old_field_value(field, x  , y)
+                             + get_old_field_value(field, x  , y+1)
+                             + get_old_field_value(field, x+1, y-1)
+                             + get_old_field_value(field, x+1, y)
+                             + get_old_field_value(field, x+1, y+1);
+      field->new_values[to_linear_field_index(field, x, y)] = new_value / 9.0;
+    }
   }
+}
 
-int main(int argc, char** argv)
+int main(int argc, const char** argv)
 {
   arg_t args;
-  field *fields = (field*) malloc (sizeof(field)); //Warum muss hier Malloc und bei arg_t nicht?!?!?;
-  int counter = 0; //Zaehlvariable fuer Rounds
+  read_args(argc, argv, &args);
 
-  if(argc !=4)
+  hotspot_vector_t hotspots;
+  if (read_hotspots(args.hotspot_filename, &hotspots))
   {
-    puts("Wrong Arguments. Usage: <Width> <Height> <Rounds> <Filename_hotspot.csv> <Filename_coordinates.csv>");
+    printf("could not read hotspots from: %s", args.hotspot_filename);
     return -1;
   }
 
-  read_args(argv,&args,&argc);
-  read_hotpots(&args.hotspot_file);
-  initialize_field(&fields,&args);
+  field_t field;
+  init_field(args, &field);
 
-  for(counter=0;args.n_rounds < counter;counter++)
-    {
+  int current_round = 0;
+  set_hotspots(&field, current_round, &hotspots);
+  while (current_round++ < args.n_rounds)
+  {
+    //print_field(&field);
+    simulate_round(&field);
 
-    //nach jedem Durchlauf wird new_field zu source_field indem Zeigeradressen gedreht werden
-    
-    }
+    // double buffering
+    field_value_t * temp = field.old_values;
+    field.old_values = field.new_values;
+    field.new_values = temp;
 
+    set_hotspots(&field, current_round, &hotspots);
+  }
+  print_field(&field);
+  return 0;
 }
