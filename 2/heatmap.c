@@ -38,6 +38,10 @@ typedef struct field
   field_value_t* new_values;
   int height;
   int width;
+  int n_threads;
+  sem_t* start_conditions;
+  sem_t* stop_conditions;
+  pthread_t* threads;
 } field_t;
 
 int to_linear_field_index(
@@ -131,6 +135,8 @@ void set_hotspots(
   }
 }
 
+#define ROWS_PER_THREAD 8
+
 void init_field(
   const arg_t args,     // in
   field_t* field) // out
@@ -142,6 +148,16 @@ void init_field(
   field->old_values += 3 + args.width_field;
   field->new_values = calloc(field_size, sizeof(field_value_t));
   field->new_values += 3 + args.width_field;
+  field->n_threads = field->heigth/ROWS_PER_THREAD;
+  field->start_conditions = calloc(field->n_threads, sizeof(sem_t));
+  field->stop_conditions = calloc(field->n_threads, sizeof(sem_t));
+  field->threads = calloc(field->n_threads, sizeof(pthread_t));
+  for (int i = 0; i < field->n_threads; ++i)
+  {
+    pthread_cond_init(&field->start_conditions[i], NULL);
+    pthread_cond_init(&field->stop_conditions[i], NULL);
+    pthread_create(&field->threads[i], NULL, ,);
+  }
 }
 
 int to_linear_field_index(
@@ -200,6 +216,39 @@ void simulate_round(
   }
 }
 
+#define MIN(a, b) ((a < b) ? a : b)
+
+void* simulate_part_of_round(
+  field_t* field,
+  int id)
+{
+  while (1)
+  {
+    field->start_conditions[i]
+
+    int start_y = id * ROWS_PER_THREAD;
+    int end_y = MIN(field->height, (id+1) * ROWS_PER_THREAD);
+
+    for (int y = start_y; y < end_y; ++y)
+    {
+      for (int x = 0; x < field->width; ++x)
+      {
+        const double new_value = get_old_field_value(field, x-1, y-1)
+                               + get_old_field_value(field, x-1, y)
+                               + get_old_field_value(field, x-1, y+1)
+                               + get_old_field_value(field, x  , y-1)
+                               + get_old_field_value(field, x  , y)
+                               + get_old_field_value(field, x  , y+1)
+                               + get_old_field_value(field, x+1, y-1)
+                               + get_old_field_value(field, x+1, y)
+                               + get_old_field_value(field, x+1, y+1);
+        field->new_values[to_linear_field_index(field, x, y)] = new_value / 9.0;
+      }
+    }
+  }
+  return NULL;
+}
+
 int main(int argc, const char** argv)
 {
   arg_t args;
@@ -214,6 +263,7 @@ int main(int argc, const char** argv)
 
   field_t field;
   init_field(args, &field);
+  pthread_cont_init()
 
   int current_round = 0;
   set_hotspots(&field, current_round, &hotspots);
