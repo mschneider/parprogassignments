@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <semaphore.h>
 
 typedef struct arg_t
 {
@@ -118,7 +119,7 @@ int read_hotspots(
     ++hotspots->count;
   }
 }
-
+/*Warum modified als erstes dachte in/out*/
 void set_hotspots(
   field_t * field, // modified
   const int current_round,
@@ -148,7 +149,7 @@ void init_field(
   field->old_values += 3 + args.width_field;
   field->new_values = calloc(field_size, sizeof(field_value_t));
   field->new_values += 3 + args.width_field;
-  field->n_threads = field->heigth/ROWS_PER_THREAD;
+  field->n_threads = (field->height)/ROWS_PER_THREAD;
   field->start_conditions = calloc(field->n_threads, sizeof(sem_t));
   field->stop_conditions = calloc(field->n_threads, sizeof(sem_t));
   field->threads = calloc(field->n_threads, sizeof(pthread_t));
@@ -224,7 +225,7 @@ void* simulate_part_of_round(
 {
   while (1)
   {
-    field->start_conditions[i]
+    field->start_conditions[i]; //wozu
 
     int start_y = id * ROWS_PER_THREAD;
     int end_y = MIN(field->height, (id+1) * ROWS_PER_THREAD);
@@ -263,7 +264,7 @@ int main(int argc, const char** argv)
 
   field_t field;
   init_field(args, &field);
-  pthread_cont_init()
+  pthread_cont_init();
 
   int current_round = 0;
   set_hotspots(&field, current_round, &hotspots);
