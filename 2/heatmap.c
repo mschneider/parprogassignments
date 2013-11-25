@@ -78,7 +78,7 @@ void read_args(
   sscanf(argv[3],"%d", &args->n_rounds);
   args->act_round = 0;
   read_str_arg(argv[4], &args->hotspot_filename);
-  if(argc == 6)
+  if (argc >= 6)
     read_str_arg(argv[5], &args->selection_filename);
 }
 
@@ -127,6 +127,7 @@ int read_hotspots(
 
     ++hotspots->count;
   }
+  return 0;
 }
 
 
@@ -171,6 +172,7 @@ int read_coordinates(
 
     ++hotspots->count;
   }
+  return 0;
 }
 
 
@@ -206,7 +208,7 @@ void init_field(
   field->height = args.height_field;
   field->width = args.width_field;
   size_t field_size = (field->width + 2) * (field->height + 2);
-  printf("allocating field %ix%i=%i\n", field->width, field->height, field_size);
+  printf("allocating field %ix%i=%lu\n", field->width, field->height, field_size);
   field->old_values = calloc(field_size, sizeof(field_value_t));
   field->old_values = &field->old_values[3 + field->width];
   field->new_values = calloc(field_size, sizeof(field_value_t));
@@ -275,7 +277,7 @@ void print_coordinate_values(
   {
     const hotspot_t * p = &coordinates->elems[i];
     const field_value_t value = get_old_field_value(field, p->x, p->y);
-    fprintf(file, "%f\n", value);
+    fprintf(file, "%0.17lf\n", value);
   }
   fclose(file);
 }
@@ -317,7 +319,7 @@ void simulate_round(
 
 
 
-void* simulate_part_of_round(
+void simulate_part_of_round(
   field_t* field,
   int id)
 {
@@ -390,9 +392,9 @@ int main(int argc, const char** argv)
 
     set_hotspots(&field, current_round, &hotspots);
   }
-  if (argc == 5) {
-    get_coordinates(args.selection_filename, &coordinates);
-    print_coordinate_values(&field,&coordinates);}
+  if (args.selection_filename) {
+    read_coordinates(args.selection_filename, &coordinates);
+    print_coordinate_values(&field, &coordinates);}
   else
   {
     print_field(&field);
