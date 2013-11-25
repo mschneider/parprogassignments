@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <semaphore.h>
+#include <errno.h>
+
+#define MIN(a, b) ((a < b) ? a : b)
 
 typedef struct arg_t
 {
@@ -39,13 +42,14 @@ typedef double field_value_t;
 
 typedef struct field
 {
-  field_value_t* old_values;
-  field_value_t* new_values;
+  volatile field_value_t* old_values;
+  volatile field_value_t* new_values;
   int height;
   int width;
   int n_threads;
-  sem_t* start_conditions;
-  sem_t* stop_conditions;
+  int rows_per_thread;
+  pthread_mutex_t* start_conditions;
+  pthread_mutex_t* stop_conditions;
   pthread_t* threads;
   thread_arg_t* thread_args;
 } field_t;
@@ -141,7 +145,6 @@ void set_hotspots(
   }
 }
 
-#define ROWS_PER_THREAD 2
 void * thread_main(void *);
 
 void init_field(
@@ -150,20 +153,25 @@ void init_field(
 {
   field->height = args.height_field;
   field->width = args.width_field;
-  size_t field_size = (args.width_field + 2) * (args.height_field + 2);
+  size_t field_size = (field->width + 2) * (field->height + 2);
+//  printf("allocating field %ix%i=%i\n", field->width, field->height, field_size);
   field->old_values = calloc(field_size, sizeof(field_value_t));
-  field->old_values += 3 + args.width_field;
+  field->old_values = &field->old_values[3 + field->width];
   field->new_values = calloc(field_size, sizeof(field_value_t));
-  field->new_values += 3 + args.width_field;
-  field->n_threads = (field->height)/ROWS_PER_THREAD;
-  field->start_conditions = calloc(field->n_threads, sizeof(sem_t));
-  field->stop_conditions = calloc(field->n_threads, sizeof(sem_t));
+  field->new_values = &field->new_values[3 + field->width];
+  field->rows_per_thread = 32 * 1024 / (field->width + 2);
+  field->n_threads = (field->height)/field->rows_per_thread + (((field->height) % field->rows_per_thread) ? 1 : 0);
+//  printf("using %i threads\n", field->n_threads);
+  field->start_conditions = calloc(field->n_threads, sizeof(pthread_mutex_t));
+  field->stop_conditions = calloc(field->n_threads, sizeof(pthread_mutex_t));
   field->threads = calloc(field->n_threads, sizeof(pthread_t));
   field->thread_args = calloc(field->n_threads, sizeof(thread_arg_t));
   for (int i = 0; i < field->n_threads; ++i)
   {
-    sem_init(&field->start_conditions[i], 0, 0);
-    sem_init(&field->stop_conditions[i], 0, 0);
+    pthread_mutex_init(&field->start_conditions[i], NULL);
+    pthread_mutex_lock(&field->start_conditions[i]);
+    pthread_mutex_init(&field->stop_conditions[i], NULL);
+    pthread_mutex_lock(&field->stop_conditions[i]);
     field->thread_args[i].id = i;
     field->thread_args[i].field = field;
     pthread_create(&field->threads[i], NULL, thread_main, &field->thread_args[i]);
@@ -231,22 +239,24 @@ void simulate_round(
 {
   for (int i = 0; i < field->n_threads; ++i)
   {
-    sem_post(&field->start_conditions[i]);
-    sem_wait(&field->stop_conditions[i]);
+    pthread_mutex_unlock(&field->start_conditions[i]);
+  }
+  for (int i = 0; i < field->n_threads; ++i)
+  {
+    pthread_mutex_lock(&field->stop_conditions[i]);
   }
 }
 
 
 
-#define MIN(a, b) ((a < b) ? a : b)
 
 void* simulate_part_of_round(
   field_t* field,
   int id)
 {
 
-    int start_y = id * ROWS_PER_THREAD;
-    int end_y = MIN(field->height, (id+1) * ROWS_PER_THREAD);
+    int start_y = id * field->rows_per_thread;
+    int end_y = MIN(field->height, (id+1) * field->rows_per_thread);
 
     for (int y = start_y; y < end_y; ++y)
     {
@@ -273,12 +283,9 @@ void * thread_main(void * _args)
   int id = args->id;
   while (1)
   {
-    printf("thread %i waiting to start", id);
-    sem_wait(&field->start_conditions[id]);
-    printf("thread %i started", id);
+    pthread_mutex_lock(&field->start_conditions[id]);
     simulate_part_of_round(field, id);
-    printf("thread %i signaling completion", id);
-    sem_post(&field->stop_conditions[id]);
+    pthread_mutex_unlock(&field->stop_conditions[id]);
   }
   return NULL;
 
@@ -303,11 +310,11 @@ int main(int argc, const char** argv)
   set_hotspots(&field, current_round, &hotspots);
   while (current_round++ < args.n_rounds)
   {
-    print_field(&field);
+    /*print_field(&field);*/
     simulate_round(&field);
 
     // double buffering
-    field_value_t * temp = field.old_values;
+    volatile field_value_t * temp = field.old_values;
     field.old_values = field.new_values;
     field.new_values = temp;
 
