@@ -128,6 +128,54 @@ int read_hotspots(
     ++hotspots->count;
   }
 }
+
+
+int read_coordinates(
+  const char* filename, // in
+  hotspot_vector_t* hotspots) // out
+{
+  FILE* file = fopen(filename, "r");
+  if (NULL == file)
+    return -1;
+
+  char first_line[256];
+  if (NULL == fgets(first_line, sizeof(first_line), file))
+    return -1;
+
+  if (0 != strcmp(first_line, "x,y\n"))
+    return -1;
+
+  hotspots->count = 0;
+  hotspots->elems = calloc(MAX_HOTSPOTS, sizeof(hotspot_t));
+
+  // lesen von File ab zweiter Zeile und für jede Zeile ein neues Struct hotspot
+  while (1) {
+    hotspot_t* current_hotspot = &hotspots->elems[hotspots->count];
+    int numbers_read = fscanf(file, "%d,%d\n",
+          &current_hotspot->x,
+          &current_hotspot->y);
+
+//    printf("hotspot(%d):%d,%d,%d,%d\n",
+//        numbers_read,
+//        current_hotspot->x,
+//        current_hotspot->y,
+//        current_hotspot->start,
+//        current_hotspot->end);
+
+    if (numbers_read == -1) // end of file
+      return 0;
+    if (numbers_read != 2) // wrong format
+      return -1;
+    if (hotspots->count >= MAX_HOTSPOTS) // file too long
+      return -1;
+
+    ++hotspots->count;
+  }
+}
+
+
+
+
 /*Warum modified als erstes dachte in/out*/
 void set_hotspots(
   field_t * field, // modified
@@ -144,6 +192,10 @@ void set_hotspots(
     }
   }
 }
+
+
+
+
 
 void * thread_main(void *);
 
@@ -312,11 +364,14 @@ int main(int argc, const char** argv)
   read_args(argc, argv, &args);
 
   hotspot_vector_t hotspots;
+  hotspot_vector_t coordinates;
+
   if (read_hotspots(args.hotspot_filename, &hotspots))
   {
     printf("could not read hotspots from: %s", args.hotspot_filename);
     return -1;
   }
+
 
   field_t field;
   init_field(args, &field);
@@ -335,6 +390,12 @@ int main(int argc, const char** argv)
 
     set_hotspots(&field, current_round, &hotspots);
   }
-  print_field(&field);
-  return 0;
+  if (argc == 5) {
+    get_coordinates(args.selection_filename, &coordinates);
+    print_coordinate_values(&field,&coordinates);}
+  else
+  {
+    print_field(&field);
+  }
+   return 0;
 }
