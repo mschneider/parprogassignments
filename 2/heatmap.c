@@ -365,6 +365,13 @@ int main(int argc, const char** argv)
   arg_t args;
   read_args(argc, argv, &args);
 
+  printf("args width:%i height:%i rounds:%i hotspots:%s selection:%s\n",
+      args.width_field,
+      args.height_field,
+      args.n_rounds,
+      args.hotspot_filename,
+      args.selection_filename);
+
   hotspot_vector_t hotspots;
   hotspot_vector_t coordinates;
 
