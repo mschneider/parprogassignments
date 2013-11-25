@@ -88,16 +88,22 @@ int read_hotspots(
   const char* filename, // in
   hotspot_vector_t* hotspots) // out
 {
+  FILE* append_new_line = fopen(filename, "a");
+  if (NULL == append_new_line)
+    return -1;
+  fprintf(append_new_line, "\n");
+  fclose(append_new_line);
+
   FILE* file = fopen(filename, "r");
   if (NULL == file)
-    return -1;
+    return -2;
 
   char first_line[256];
   if (NULL == fgets(first_line, sizeof(first_line), file))
-    return -1;
+    return -3;
 
   if (0 != strcmp(first_line, "x,y,startround,endround\n"))
-    return -1;
+    return -4;
 
   hotspots->count = 0;
   hotspots->elems = calloc(MAX_HOTSPOTS, sizeof(hotspot_t));
@@ -135,16 +141,22 @@ int read_coordinates(
   const char* filename, // in
   hotspot_vector_t* hotspots) // out
 {
+  FILE* append_new_line = fopen(filename, "a");
+  if (NULL == append_new_line)
+    return -1;
+  fprintf(append_new_line, "\n");
+  fclose(append_new_line);
+
   FILE* file = fopen(filename, "r");
   if (NULL == file)
-    return -1;
+    return -2;
 
   char first_line[256];
   if (NULL == fgets(first_line, sizeof(first_line), file))
-    return -1;
+    return -3;
 
   if (0 != strcmp(first_line, "x,y\n"))
-    return -1;
+    return -4;
 
   hotspots->count = 0;
   hotspots->elems = calloc(MAX_HOTSPOTS, sizeof(hotspot_t));
@@ -370,7 +382,7 @@ int main(int argc, const char** argv)
       args.height_field,
       args.n_rounds,
       args.hotspot_filename,
-      args.selection_filename);
+      argc >= 6 ? args.selection_filename : "empty");
 
   hotspot_vector_t hotspots;
   hotspot_vector_t coordinates;
@@ -399,7 +411,7 @@ int main(int argc, const char** argv)
 
     set_hotspots(&field, current_round, &hotspots);
   }
-  if (args.selection_filename) {
+  if (argc >= 6) {
     read_coordinates(args.selection_filename, &coordinates);
     print_coordinate_values(&field, &coordinates);}
   else
