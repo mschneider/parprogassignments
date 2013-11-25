@@ -16,6 +16,10 @@ typedef struct arg_t
   char* selection_filename;
 } arg_t;
 
+typedef struct thread_arg_t {
+  int id;
+  void * field;
+} thread_arg_t;
 
 typedef struct hotspot
 {
@@ -43,6 +47,7 @@ typedef struct field
   sem_t* start_conditions;
   sem_t* stop_conditions;
   pthread_t* threads;
+  thread_arg_t* thread_args;
 } field_t;
 
 int to_linear_field_index(
@@ -136,7 +141,8 @@ void set_hotspots(
   }
 }
 
-#define ROWS_PER_THREAD 8
+#define ROWS_PER_THREAD 2
+void * thread_main(void *);
 
 void init_field(
   const arg_t args,     // in
@@ -153,11 +159,14 @@ void init_field(
   field->start_conditions = calloc(field->n_threads, sizeof(sem_t));
   field->stop_conditions = calloc(field->n_threads, sizeof(sem_t));
   field->threads = calloc(field->n_threads, sizeof(pthread_t));
+  field->thread_args = calloc(field->n_threads, sizeof(thread_arg_t));
   for (int i = 0; i < field->n_threads; ++i)
   {
-    pthread_cond_init(&field->start_conditions[i], NULL);
-    pthread_cond_init(&field->stop_conditions[i], NULL);
-    pthread_create(&field->threads[i], NULL, ,);
+    sem_init(&field->start_conditions[i], 0, 0);
+    sem_init(&field->stop_conditions[i], 0, 0);
+    field->thread_args[i].id = i;
+    field->thread_args[i].field = field;
+    pthread_create(&field->threads[i], NULL, thread_main, &field->thread_args[i]);
   }
 }
 
@@ -196,7 +205,7 @@ void print_field(
   }
 }
 
-void simulate_round(
+void sequential_simulate_round(
   field_t* field) // in and out
 {
   for (int y = 0; y < field->height; ++y)
@@ -217,15 +226,24 @@ void simulate_round(
   }
 }
 
+void simulate_round(
+  field_t* field) // in and out
+{
+  for (int i = 0; i < field->n_threads; ++i)
+  {
+    sem_post(&field->start_conditions[i]);
+    sem_wait(&field->stop_conditions[i]);
+  }
+}
+
+
+
 #define MIN(a, b) ((a < b) ? a : b)
 
 void* simulate_part_of_round(
   field_t* field,
   int id)
 {
-  while (1)
-  {
-    field->start_conditions[i]; //wozu
 
     int start_y = id * ROWS_PER_THREAD;
     int end_y = MIN(field->height, (id+1) * ROWS_PER_THREAD);
@@ -246,8 +264,24 @@ void* simulate_part_of_round(
         field->new_values[to_linear_field_index(field, x, y)] = new_value / 9.0;
       }
     }
+}
+
+void * thread_main(void * _args)
+{
+  thread_arg_t * args = (thread_arg_t *) _args;
+  field_t * field = (field_t *) args->field;
+  int id = args->id;
+  while (1)
+  {
+    printf("thread %i waiting to start", id);
+    sem_wait(&field->start_conditions[id]);
+    printf("thread %i started", id);
+    simulate_part_of_round(field, id);
+    printf("thread %i signaling completion", id);
+    sem_post(&field->stop_conditions[id]);
   }
   return NULL;
+
 }
 
 int main(int argc, const char** argv)
@@ -264,13 +298,12 @@ int main(int argc, const char** argv)
 
   field_t field;
   init_field(args, &field);
-  pthread_cont_init();
 
   int current_round = 0;
   set_hotspots(&field, current_round, &hotspots);
   while (current_round++ < args.n_rounds)
   {
-    //print_field(&field);
+    print_field(&field);
     simulate_round(&field);
 
     // double buffering
