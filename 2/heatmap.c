@@ -154,14 +154,14 @@ void init_field(
   field->height = args.height_field;
   field->width = args.width_field;
   size_t field_size = (field->width + 2) * (field->height + 2);
-//  printf("allocating field %ix%i=%i\n", field->width, field->height, field_size);
+  printf("allocating field %ix%i=%i\n", field->width, field->height, field_size);
   field->old_values = calloc(field_size, sizeof(field_value_t));
   field->old_values = &field->old_values[3 + field->width];
   field->new_values = calloc(field_size, sizeof(field_value_t));
   field->new_values = &field->new_values[3 + field->width];
   field->rows_per_thread = 32 * 1024 / (field->width + 2);
   field->n_threads = (field->height)/field->rows_per_thread + (((field->height) % field->rows_per_thread) ? 1 : 0);
-//  printf("using %i threads\n", field->n_threads);
+  printf("using %i threads\n", field->n_threads);
   field->start_conditions = calloc(field->n_threads, sizeof(pthread_mutex_t));
   field->stop_conditions = calloc(field->n_threads, sizeof(pthread_mutex_t));
   field->threads = calloc(field->n_threads, sizeof(pthread_t));
@@ -197,20 +197,21 @@ double get_old_field_value(
 void print_field(
   const field_t* field) // in
 {
-//  printf("field:\n");
+  FILE * file = fopen("output.txt", "w+");
   for (int y = 0; y < field->height; ++y)
   {
     for (int x = 0; x < field->width; ++x)
     {
       const field_value_t value = get_old_field_value(field, x, y);
       if (value > 0.9)
-        printf("X");
+        fprintf(file, "X");
       else
-        printf("%d", (int) (10.0 * (value + 0.09)));
+        fprintf(file, "%d", (int) (10.0 * (value + 0.09)));
 
     }
-    printf("\n");
+    fprintf(file, "\n");
   }
+  fclose(file);
 }
 
 void sequential_simulate_round(
