@@ -214,6 +214,20 @@ void print_field(
   fclose(file);
 }
 
+void print_coordinate_values(
+  const field_t* field,
+  const hotspot_vector_t* coordinates)
+{
+  FILE * file = fopen("output.txt", "w+");
+  for (int i = 0; i < coordinates->count; ++i)
+  {
+    const hotspot_t * p = &coordinates->elems[i];
+    const field_value_t value = get_old_field_value(field, p->x, p->y);
+    fprintf(file, "%f\n", value);
+  }
+  fclose(file);
+}
+
 void sequential_simulate_round(
   field_t* field) // in and out
 {
