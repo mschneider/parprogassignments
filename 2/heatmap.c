@@ -374,6 +374,7 @@ void * thread_main(void * _args)
 
 int main(int argc, const char** argv)
 {
+  int ret;
   arg_t args;
   read_args(argc, argv, &args);
 
@@ -387,9 +388,9 @@ int main(int argc, const char** argv)
   hotspot_vector_t hotspots;
   hotspot_vector_t coordinates;
 
-  if (read_hotspots(args.hotspot_filename, &hotspots))
+  if (ret = read_hotspots(args.hotspot_filename, &hotspots))
   {
-    printf("could not read hotspots from: %s", args.hotspot_filename);
+    printf("could not read hotspots from: %s (%d)", args.hotspot_filename, ret);
     return -1;
   }
 
@@ -412,7 +413,11 @@ int main(int argc, const char** argv)
     set_hotspots(&field, current_round, &hotspots);
   }
   if (argc >= 6) {
-    read_coordinates(args.selection_filename, &coordinates);
+    if (ret = read_coordinates(args.selection_filename, &coordinates))
+    {
+      printf("could not read coordinates from: %s (%d)", args.selection_filename, ret);
+      return -1;
+    }
     print_coordinate_values(&field, &coordinates);}
   else
   {
