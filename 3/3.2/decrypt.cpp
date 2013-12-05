@@ -8,17 +8,21 @@
 
 #include <functional>
 
-struct password_hash
+typedef std::set<std::string> Dictionary;
+
+struct Password
 {
-    std::string salt, cyphertext;
+    std::string salt, cyphertext, plaintext;
 
-    password_hash(){}
+    Password(){}
 
-    password_hash(const std::string & hash)
+    Password(const std::string & hash)
     : salt(hash.substr(0,2))
     , cyphertext(hash.substr(2))
     {}
 };
+
+typedef std::map<std::string, Password> UserPasswords;
 
 bool read_line_by_line(const std::string & filename, std::function<bool (std::string)> callback)
 {
@@ -34,9 +38,9 @@ bool read_line_by_line(const std::string & filename, std::function<bool (std::st
 
 bool read_password_file(
     const std::string & filename, // in
-    std::map<std::string, password_hash> & password_hashes_by_username) // out
+    UserPasswords & passwords) // out
 {
-    return read_line_by_line(filename, [&password_hashes_by_username](const std::string & line)
+    return read_line_by_line(filename, [&passwords](const std::string & line)
     {
         std::istringstream line_as_stream(line);
 
@@ -50,24 +54,44 @@ bool read_password_file(
         std::string hash_part_of_line;
         if (! std::getline(line_as_stream, hash_part_of_line, '\r'))
         {
-            std::cerr << "wrong line format, could not read password_hash" << std::endl;
+            std::cerr << "wrong line format, could not read password" << std::endl;
             return false;
         }
 
-        password_hashes_by_username[username] = password_hash(hash_part_of_line);
+        passwords[username] = Password(hash_part_of_line);
         return true;
     });
 }
 
 bool read_dictionary_file(
     const std::string & filename, // in
-    std::set<std::string> & possible_keys) // out
+    Dictionary & dictionary) // out
 {
-    return read_line_by_line(filename, [&possible_keys](const std::string & line)
+    return read_line_by_line(filename, [&dictionary](const std::string & line)
     {
-        possible_keys.insert(line);
+        dictionary.insert(line);
         return true;
     });
+}
+
+void write_decrypted_passwords(
+    const UserPasswords & passwords)
+{
+    auto passwords_decrypted = 0;
+    std::ofstream output("output.txt");
+    for (auto & entry : passwords)
+    {
+        auto & password = entry.second;
+        if (! password.plaintext.empty())
+        {
+            auto & username = entry.first;
+            output << username << ';' << password.plaintext << std::endl;
+            passwords_decrypted += 1;
+        }
+    }
+    std::cout << "Decrypted " << passwords_decrypted << " passwords" << std::endl;
+
+
 }
 
 int main(int argc, char** argv)
@@ -78,21 +102,27 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    std::map<std::string, password_hash> password_hashes_by_username;
-    std::set<std::string> possible_keys;
-    bool ok = read_password_file(argv[1], password_hashes_by_username);
-    if (! ok)
+    UserPasswords passwords_by_username;
+    Dictionary possible_keys;
+    bool ok = read_password_file(argv[1], passwords_by_username);
+    if (! ok || passwords_by_username.empty())
     {
         std::cerr << "could not read password_file" << std::endl;
         return -1;
     }
+    std::cout << "PasswordDatabase contains " << passwords_by_username.size() << " users" << std::endl;
 
     ok = read_dictionary_file(argv[2], possible_keys);
-    if (! ok)
+    if (! ok || possible_keys.empty())
     {
         std::cerr << "could not read dictionary_file" << std::endl;
         return -1;
     }
+    std::cout << "Dictionary contains " << possible_keys.size() << " possible keys" << std::endl;
 
+    // decrypt passwords and write decrypted passwords into password.plain_text
+    passwords_by_username["User01"].plaintext = "pass";
+
+    write_decrypted_passwords(passwords_by_username);
     return 0;
 }
