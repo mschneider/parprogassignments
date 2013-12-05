@@ -6,11 +6,10 @@
 #include <ctime>
 #include <cfloat>
 #include <omp.h>
-
 using namespace std;
 
 /*****************************************FILENAME DEFINITION***/
-const char oname[16]="output.bmp";
+const char oname[16]="test.bmp";
 
 /*******************************************STRUCT DEFINITION***/
 struct color{
@@ -25,9 +24,8 @@ struct color{
 };
 
 /********************************************SIZE DEFINITIONS***/
-unsigned hgrid,vgrid;
-//const unsigned hgrid = 500,//x dimension of the grid (can be anything >= 1)
-//			   vgrid = hgrid;//y dimension of the grid (can be anything >= 1 (hgrid and vgrid can differ); I only do this to make a square image)
+const unsigned hgrid = 500,//x dimension of the grid (can be anything >= 1)
+			   vgrid = hgrid;//y dimension of the grid (can be anything >= 1 (hgrid and vgrid can differ); I only do this to make a square image)
 
 /*********************************************SEED DEFINITION***/
 int permutations[256];
@@ -37,8 +35,8 @@ int ranInt();
 float random(int x, int y, int z);
 color lerp(color c1, color c2, float value);//LERP = Linear intERPolation
 
-void fillMap(float* map, float &min, float &max);// this is the algorithm part (the interesting part)
-void printMap(float* map, float min, float max);//bitmap part
+void fillMap(float map[][vgrid], float &min, float &max);// this is the algorithm part (the interesting part)
+void printMap(float map[][vgrid], float min, float max);//bitmap part
 void printPage(time_t beginning, time_t end);//webpage part
 
 float smoothedNoise(float x,float y);
@@ -48,44 +46,27 @@ float chebychev(float x1, float y1, float x2, float y2);
 float quadratic(float x1, float y1, float x2, float y2);
 
 /********************************************************MAIN***/
-int main(int argc, char** argv)
+int main()
 {
-  if(argc =! 3)
-  {
-    printf("Wrong number of arguments: <with> <height>");return -1;
-  }
-  else
-  {
-     sscanf(argv[1],"%d", &hgrid);
-     sscanf(argv[2],"%d", &vgrid);
-  }
+	time_t beginning = time(NULL),//these two are used to time our algorithm
+		   end;
 
+	srand((unsigned)beginning);
 
-	int j,k;
- #pragma omp parallel //Erzeugen von Threads
-  {
+	int i,j,k;
 
-  #pragma omp for
-	for (int i=0;i<256;++i) {
-   		permutations[i]=i;
-      
-   }
-  
-  printf("%d\n",permutations[200]);
- #pragma omp for //J,K als Private Variable da alle Threads darauf zugreifen Variable private oder critical Section?
-  for (int i=0;i<256;++i)
-  {
+	for (i=0;i<256;++i)
+		permutations[i]=i;
+
+	for (i=0;i<256;++i)
+	{
 		j=permutations[i];
 		k=ranInt();
-    printf("Thread Number  = %d, i = %d\n Value Permutation=%d j=%d\n",omp_get_thread_num(),i,permutations[i],j);
-
-    permutations[i]=permutations[k];
+		permutations[i]=permutations[k];
 		permutations[k]=j;
 	}
-  }
-  
 
-	float* map = (float*)malloc(sizeof(float)*hgrid*vgrid);//make the empty array
+	float map[hgrid][vgrid];//make the empty array
 	
 	float min,max;
 
@@ -95,6 +76,10 @@ int main(int argc, char** argv)
 	//now that we have an interesting map, create a .BMP file
 	printMap(map, min, max);
 	
+	//finally, output a webpage
+	end = time(NULL);//set it to now
+	printPage(beginning, end);
+
 	return (0);
 }
 
@@ -113,13 +98,13 @@ color lerp(color c1, color c2, float value){
 	return (tcolor);
 }
 
-void fillMap(float* map, float &min, float &max)
+void fillMap(float map[][vgrid], float &min, float &max)
 {
 //set up some variables
 	
-	int   octaves = 8;     //iterator
-		         //location variables
-		//octaves (levels of detail or number of passes)
+	int	i,//iterator
+		x,y,//location variables
+		octaves = 8;//octaves (levels of detail or number of passes)
 	
 	float gain = 0.65f, //modifier for the amplitude
 		  lacunarity = 2.0f, //modifier for the frequency
@@ -129,39 +114,37 @@ void fillMap(float* map, float &min, float &max)
 	max=0.0f;//for averaging
 	
 //get started
-    for (int x=0;x<hgrid;++x)
-    {
-      for (int y=0;y<vgrid;++y)
-      {
-        //for each pixel, get the value
-        total = 0.0f;
-        frequency = 1.0f/(float)hgrid;
-        amplitude = 1.0f;
-    //    #pragma omp for
-        for (int i = 0; i < octaves; ++i)
-        {
-      //    #pragma omp flush(offset,total,frequency,amplitude)
-          offset = (float)i * 7.0f;//this is just to add variance between layers
-          total += smoothedNoise((float)x * frequency + offset, (float)y * frequency + offset) * amplitude;
-          frequency *= lacunarity;
-          amplitude *= gain;
-       //   #pragma omp flush(offset,total,frequency,amplitude)
+	for (x=0;x<hgrid;++x)
+	{
+		for (y=0;y<vgrid;++y)
+		{
+			//for each pixel, get the value
+			total = 0.0f;
+			frequency = 1.0f/(float)hgrid;
+			amplitude = 1.0f;
+			
+			for (i = 0; i < octaves; ++i)
+			{
+				offset = (float)i * 7.0f;//this is just to add variance between layers
 
-        }
-        
-        //now that we have the value, put it in
-        map[x+y*hgrid] = total;
-        
-        //just do some minor calculations while we're here anyway
-        if (total<min)
-          min = total;
-        if (total>max)
-          max = total;
-      }
-    }
-
+				total += smoothedNoise((float)x * frequency + offset, (float)y * frequency + offset) * amplitude;
+				
+				frequency *= lacunarity;
+				amplitude *= gain;
+			}
+			
+			//now that we have the value, put it in
+			map[x][y] = total;
+			
+			//just do some minor calculations while we're here anyway
+			if (total<min)
+				min = total;
+			if (total>max)
+				max = total;
+		}
+	}
 }
-//nicht parallelisierbar
+
 float random(int x, int y, int z){
 	int r1 = permutations[(x + permutations[(y + permutations[z & 255]) & 255]) & 255];
 
@@ -177,70 +160,60 @@ int ranInt(){
 
     return (r&255);
 }
-//bis hier nicht parallelsierbar
-
-
 
 float smoothedNoise(float x, float y)
 {
-
-
 	int	int_x = (int)x,
 		int_y = (int)y,
-	  tempx,tempy;
+		i,j, tempx,tempy;
 
 	float	frac_x = x - (float)int_x,
 			frac_y = y - (float)int_y,
 			points[3][3][2],
 			temp_dis,
 			distance1,distance2;
-	  #pragma omp parallel
-  {
-
+	
 	//get the point inside the current square, and the point inside the 8 surrounding squares
-  #pragma omp for collapse(2) 
-  for (int i = 0;i<3;++i)
-    {
-      for (int j = 0; j < 3; ++j)
-      {
-        tempx = int_x + i - 1;
-        tempy = int_y + j - 1;
-        points[i][j][0] = tempx + random(tempx, tempy, 1);
-        points[i][j][1] = tempy + random(tempx, tempy, 2);
-      }
-    }
-  
-    //get the distance to the closest point from x, y
-    distance1 = distance2 = FLT_MAX;
-    for (int i = 0; i < 3; ++i)
-    {
-      for (int j = 0; j < 3; ++j)
-      {
-        temp_dis = euclideanSquared(x,y,points[i][j][0],points[i][j][1]);
-        //temp_dis = manhattan(x,y,points[i][j][0],points[i][j][1]);
-        //temp_dis = chebychev(x,y,points[i][j][0],points[i][j][1]);
-        //temp_dis = quadratic(x,y,points[i][j][0],points[i][j][1]);
-        
-        if (temp_dis < distance1)
-        {
-          if (distance1 < distance2)
-            distance2 = distance1;
+	for (i = 0;i<3;++i)
+	{
+		for (j = 0; j < 3; ++j)
+		{
+			tempx = int_x + i - 1;
+			tempy = int_y + j - 1;
+			points[i][j][0] = tempx + random(tempx, tempy, 1);
+			points[i][j][1] = tempy + random(tempx, tempy, 2);
+		}
+	}
+	
+	//get the distance to the closest point from x, y
+	distance1 = distance2 = FLT_MAX;
+	
+	for (i = 0; i < 3; ++i)
+	{
+		for (j = 0; j < 3; ++j)
+		{
+			temp_dis = euclideanSquared(x,y,points[i][j][0],points[i][j][1]);
+			//temp_dis = manhattan(x,y,points[i][j][0],points[i][j][1]);
+			//temp_dis = chebychev(x,y,points[i][j][0],points[i][j][1]);
+			//temp_dis = quadratic(x,y,points[i][j][0],points[i][j][1]);
+			
+			if (temp_dis < distance1)
+			{
+				if (distance1 < distance2)
+					distance2 = distance1;
 
-          distance1 = temp_dis;
-        }
-        else if (temp_dis < distance2)
-          distance2 = temp_dis;
-      }
-    }
-#pragma omp flush(distance1)
-  }
- 
-    return (1.0f - distance1);//this just inverts it
-    
-    //return (distance2);
-   }
+				distance1 = temp_dis;
+			}
+			else if (temp_dis < distance2)
+				distance2 = temp_dis;
+		}
+	}
+	
+	return (1.0f - distance1);//this just inverts it
+	//return (distance2);
+}
 
-void printMap(float* map, float min, float max)
+void printMap(float map[][vgrid], float min, float max)
 {
 //set up some variables
 	float diff = max-min,
@@ -319,21 +292,22 @@ void printMap(float* map, float min, float max)
 	
 	//3.2 put in the elements of the array
 	color newcolor(0,0,0);
+	
 	for (i=(vgrid-1);i>=0;i--){//bitmaps start with the bottom row, and work their way up...
-   		for (j=0;j<hgrid;j++){//...but still go left to right
-			map[j+i * hgrid]-=min;
+		for (j=0;j<hgrid;j++){//...but still go left to right
+			map[j][i]-=min;
 			
 			//if this point is below the floodline...
-			if (map[j+i*hgrid]<flood)
-				newcolor=lerp(waterlow,waterhigh,map[j+i*hgrid]/flood);
+			if (map[j][i]<flood)
+				newcolor=lerp(waterlow,waterhigh,map[j][i]/flood);
 			
 			//if this is above the mountain line...
-			else if (map[j+i*hgrid]>mount)
-				newcolor=lerp(mountlow,mounthigh,(map[j+i*hgrid]-mount)/(diff-mount));
+			else if (map[j][i]>mount)
+				newcolor=lerp(mountlow,mounthigh,(map[j][i]-mount)/(diff-mount));
 			
 			//if this is regular land
 			else
-				newcolor=lerp(landlow,landhigh,(map[j+i*hgrid]-flood)/(mount-flood));
+				newcolor=lerp(landlow,landhigh,(map[j][i]-flood)/(mount-flood));
 			
 			//uncomment the line below to make it black 'n' white
 			//newcolor = lerp(black,white,map[j][i]/diff);
@@ -343,15 +317,27 @@ void printMap(float* map, float min, float max)
 			out.put(char(newcolor.v[2]));//red
 		}
 		//round off the row
-    #pragma omp for
 		for (k=0;k<(hgrid%4);k++)
 			out.put(char(0));
 	}
+	
 	//3.3 end the file
 	out.close();
 }
 
-//nicht parallelisierbar ?!?!?!
+void printPage(time_t beginning, time_t end)
+{
+	double timeTaken = double(end-beginning);
+	cout<<"Content-Type: text/html\n\n"
+		<<"<html><head><title>FTG Page</title></head>\n"
+		<<"<body>\n"
+		<<"<h2>Fractal Terrain Generator Page</h2>\n"
+		<<"<img src=\"test.bmp\" /><br />\n"
+		<<"This took " << timeTaken << " seconds to create.<br />\n"
+		<<"</body>\n"
+		<<"</html>\n";
+}
+
 float euclideanSquared(float x1, float y1, float x2, float y2)
 {
 	float	dif_x = x1-x2,
