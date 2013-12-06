@@ -3,30 +3,31 @@
 #include <sstream>
 #include <string>
 
-#include <map>
-#include <set>
+#include <vector>
 
 #include <functional>
 
 extern "C" {
     #include <unistd.h>
+    #include <openssl/des.h>
 }
 
-typedef std::set<std::string> Dictionary;
+typedef std::vector<std::string> Dictionary;
 
-struct Password
+struct User
 {
-    std::string salt, cyphertext, plaintext;
+    std::string name, salt, hash, plaintext;
 
-    Password(){}
+    User(){}
 
-    Password(const std::string & hash)
-    : salt(hash.substr(0,2))
-    , cyphertext(hash.substr(2))
+    User(const std::string name, const std::string & hash)
+    : name(name)
+    , salt(hash.substr(0,2))
+    , hash(hash)
     {}
 };
 
-typedef std::map<std::string, Password> UserPasswords;
+typedef std::vector<User> UserPasswords;
 
 bool read_line_by_line(const std::string & filename, std::function<bool (std::string)> callback)
 {
@@ -62,10 +63,8 @@ bool read_password_file(
             return false;
         }
 
-        passwords[username] = Password(hash_part_of_line);
-//        std::cout << "u:'" << username << '\'' << username.size() << " s:'"
-//                           << passwords[username].salt << '\'' <<  passwords[username].salt.size() << " c:'"
-//                           << passwords[username].cyphertext << '\'' <<  passwords[username].cyphertext.size() << std::endl;
+        //if (username.compare("user906") == 0)
+        passwords.emplace_back(username, hash_part_of_line);
         return true;
     });
 }
@@ -77,27 +76,36 @@ bool read_dictionary_file(
     return read_line_by_line(filename, [&dictionary](const std::string & line)
     {
         //std::cout << "p:'" << line << '\'' << line.size() << std::endl;
-        dictionary.insert(line);
+        dictionary.emplace_back(line);
         return true;
     });
 }
 
 void write_decrypted_passwords(
-    const UserPasswords & passwords)
+    const UserPasswords & users)
 {
     auto passwords_decrypted = 0;
     std::ofstream output("output.txt");
-    for (auto & entry : passwords)
+    for (auto & user : users)
     {
-        auto & password = entry.second;
-        if (! password.plaintext.empty())
+        if (! user.plaintext.empty())
         {
-            auto & username = entry.first;
-            output << username << ';' << password.plaintext << std::endl;
+            output << user.name << ';' << user.plaintext << std::endl;
             passwords_decrypted += 1;
         }
     }
     std::cout << "Decrypted " << passwords_decrypted << " passwords" << std::endl;
+}
+
+inline bool check_password(
+    const std::string & possible_password,
+    const std::string & salt,
+    const std::string & comparison_cyphertext)
+{
+    char buffer[16];
+    DES_fcrypt(possible_password.c_str(), salt.c_str(), buffer);
+    const bool was_password = comparison_cyphertext.compare(buffer) == 0;
+    return was_password;
 }
 
 int main(int argc, char** argv)
@@ -108,15 +116,15 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    UserPasswords passwords_by_username;
+    UserPasswords user_passwords;
     Dictionary possible_keys;
-    bool ok = read_password_file(argv[1], passwords_by_username);
-    if (! ok || passwords_by_username.empty())
+    bool ok = read_password_file(argv[1], user_passwords);
+    if (! ok || user_passwords.empty())
     {
         std::cerr << "could not read password_file" << std::endl;
         return -1;
     }
-    std::cout << "PasswordDatabase contains " << passwords_by_username.size() << " users" << std::endl;
+    std::cout << "PasswordDatabase contains " << user_passwords.size() << " users" << std::endl;
 
     ok = read_dictionary_file(argv[2], possible_keys);
     if (! ok || possible_keys.empty())
@@ -126,26 +134,35 @@ int main(int argc, char** argv)
     }
     std::cout << "Dictionary contains " << possible_keys.size() << " possible keys" << std::endl;
 
-    // decrypt passwords and write decrypted passwords into password.plain_text
-    for (auto & entry : passwords_by_username)
+    #pragma omp parallel for
+    for (int i = 0; i < user_passwords.size(); ++i)
     {
-        auto & password = entry.second;
+        User & user = user_passwords[i];
+        std::cout << "cracking user " << user.name << std::endl;
         for (const auto & possible_password : possible_keys)
         {
-            const auto cyphertext = crypt(possible_password.c_str(), password.salt.c_str()) + 2;
-            //std::cout << "k:'" <<  possible_password << "'" <<  " c:'" << cyphertext << "'" << std::endl;
-            if (password.cyphertext.compare(cyphertext) == 0)
+            if (check_password(possible_password, user.salt, user.hash))
             {
-                password.plaintext = possible_password;
-                std::cout << "found password:" << possible_password
-                          << " of:" << entry.first
-                          << " c1:" << password.cyphertext
-                          << " c2:" << cyphertext << std::endl;
+                user.plaintext = possible_password;
+                std::cout << "found password of:" << user.name << "'" << possible_password << "'" << std::endl;
+                goto next_user;
+            }
+            std::string longer_password = possible_password + " ";
+            for (char i = '0'; i <= '9'; ++i)
+            {
+                longer_password[longer_password.size() - 1] = i;
+                if (check_password(longer_password, user.salt, user.hash))
+                {
+                    user.plaintext = longer_password;
+                    std::cout << "found password of:" << user.name << "'" << longer_password << "'" << std::endl;
+                    goto next_user;
+                }
             }
         }
-        std::cout << "could not find password of:" << entry.first << std::endl;
+next_user:
+        ;
     }
 
-    write_decrypted_passwords(passwords_by_username);
+    write_decrypted_passwords(user_passwords);
     return 0;
 }
