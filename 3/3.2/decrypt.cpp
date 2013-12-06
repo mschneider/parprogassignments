@@ -8,6 +8,10 @@
 
 #include <functional>
 
+extern "C" {
+    #include <unistd.h>
+}
+
 typedef std::set<std::string> Dictionary;
 
 struct Password
@@ -59,6 +63,9 @@ bool read_password_file(
         }
 
         passwords[username] = Password(hash_part_of_line);
+//        std::cout << "u:'" << username << '\'' << username.size() << " s:'"
+//                           << passwords[username].salt << '\'' <<  passwords[username].salt.size() << " c:'"
+//                           << passwords[username].cyphertext << '\'' <<  passwords[username].cyphertext.size() << std::endl;
         return true;
     });
 }
@@ -69,6 +76,7 @@ bool read_dictionary_file(
 {
     return read_line_by_line(filename, [&dictionary](const std::string & line)
     {
+        //std::cout << "p:'" << line << '\'' << line.size() << std::endl;
         dictionary.insert(line);
         return true;
     });
@@ -90,8 +98,6 @@ void write_decrypted_passwords(
         }
     }
     std::cout << "Decrypted " << passwords_decrypted << " passwords" << std::endl;
-
-
 }
 
 int main(int argc, char** argv)
@@ -121,7 +127,24 @@ int main(int argc, char** argv)
     std::cout << "Dictionary contains " << possible_keys.size() << " possible keys" << std::endl;
 
     // decrypt passwords and write decrypted passwords into password.plain_text
-    passwords_by_username["User01"].plaintext = "pass";
+    for (auto & entry : passwords_by_username)
+    {
+        auto & password = entry.second;
+        for (const auto & possible_password : possible_keys)
+        {
+            const auto cyphertext = crypt(possible_password.c_str(), password.salt.c_str()) + 2;
+            //std::cout << "k:'" <<  possible_password << "'" <<  " c:'" << cyphertext << "'" << std::endl;
+            if (password.cyphertext.compare(cyphertext) == 0)
+            {
+                password.plaintext = possible_password;
+                std::cout << "found password:" << possible_password
+                          << " of:" << entry.first
+                          << " c1:" << password.cyphertext
+                          << " c2:" << cyphertext << std::endl;
+            }
+        }
+        std::cout << "could not find password of:" << entry.first << std::endl;
+    }
 
     write_decrypted_passwords(passwords_by_username);
     return 0;
