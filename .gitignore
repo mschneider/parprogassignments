@@ -1,5 +1,6 @@
 dinner
-output.txt
+output.*
+.DS_Store
 parsum
 parsum.s
 submission.tar
