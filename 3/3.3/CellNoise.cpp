@@ -10,7 +10,7 @@
 using namespace std;
 
 /*****************************************FILENAME DEFINITION***/
-const char oname[16]="test.bmp";
+const char oname[16]="output.bmp";
 
 /*******************************************STRUCT DEFINITION***/
 struct color{
