@@ -1,6 +1,6 @@
-all: parsum
+all: heatmap
 
-parsum: parsum.c
+heatmap: heatmap.c
 	gcc -O3 -fpeel-loops -funroll-loops --std=c99 heatmap.c -pthread -lm -lOpenCL -o heatmap
 
 submission:
