@@ -39,9 +39,11 @@ int read_file(
 struct cl
 {
     cl_platform_id platform_id;
+    cl_platform_id platform_ids[2];
     cl_uint num_platforms;
 
     cl_device_id device_id;
+    cl_device_id device_ids[2];
     cl_uint num_devices;
 
     cl_context context;
@@ -57,13 +59,15 @@ int init_cl(struct cl * cl)
     cl->device_id = NULL;
 
     cl_int ret;
-    ret = clGetPlatformIDs(1, &cl->platform_id, &cl->num_platforms);
+    ret = clGetPlatformIDs(2, cl->platform_ids, &cl->num_platforms);
     if (ret != CL_SUCCESS)
         return -1;
+    cl->platform_id = cl->platform_ids[cl->num_platforms - 1];
 
-    ret = clGetDeviceIDs( cl->platform_id, CL_DEVICE_TYPE_DEFAULT, 1, &cl->device_id, &cl->num_devices);
+    ret = clGetDeviceIDs( cl->platform_id, CL_DEVICE_TYPE_DEFAULT, 2, cl->device_ids, &cl->num_devices);
     if (ret != CL_SUCCESS)
         return -2;
+    cl->device_id = cl->device_ids[cl->num_devices - 1];
 
     cl->context = clCreateContext( NULL, 1, &cl->device_id, NULL, NULL, &ret);
     if (ret != CL_SUCCESS)
