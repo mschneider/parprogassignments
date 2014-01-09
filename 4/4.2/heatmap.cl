@@ -10,7 +10,7 @@ typedef struct hotspot
 typedef float field_value_t;
 
 __kernel void set_hotspots(
-    __global int current_round,
+    const int current_round,
     __global const hotspot_t * hotspots,
     __global field_value_t * buffer)
 {

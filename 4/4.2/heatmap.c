@@ -205,7 +205,7 @@ int read_coordinates(
   if (NULL == fgets(first_line, sizeof(first_line), file))
     return -3;
 
-  if (0 != strcmp(first_line, "x,y\n"))
+  if (0 != strcmp(first_line, "x,y\r\n"))
     return -4;
 
   hotspots->count = 0;
@@ -226,11 +226,19 @@ int read_coordinates(
 //        current_hotspot->end);
 
     if (numbers_read == -1) // end of file
+    {
+       puts("EOF");
       return 0;
+    }
     if (numbers_read != 2) // wrong format
+    {
+      printf("wrong: %i\n", numbers_read);
       return -1;
+    }
     if (hotspots->count >= MAX_HOTSPOTS) // file too long
+    {
       return -1;
+    }
 
     ++hotspots->count;
   }
